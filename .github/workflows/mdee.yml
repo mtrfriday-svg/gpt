@@ -1,0 +1,45 @@
+name: Build M'DEE firmware
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mdee-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: M'DEE ESP32-S3 N16R8 firmware
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache ESP-IDF components
+        uses: actions/cache@v4
+        with:
+          path: |
+            /root/.cache/Espressif/ComponentManager
+            managed_components
+          key: mdee-components-${{ hashFiles('main/idf_component.yml') }}
+          restore-keys: mdee-components-
+      - name: Build complete firmware image
+        shell: bash
+        run: |
+          source "$IDF_PATH/export.sh"
+          python scripts/build.py mdee-robot --name mdee-robot --language en-US --wake-word wn9_hijason_tts2
+          test -s build/merged-binary.bin
+          ls -lh build/merged-binary.bin
+      - name: Upload merged firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdee_${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+          retention-days: 30
